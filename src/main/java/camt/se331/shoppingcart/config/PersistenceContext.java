@@ -32,6 +32,10 @@ import java.util.Properties;
  *
  * @author Petri Kainulainen
  */
+@Configuration
+@EnableTransactionManagement(proxyTargetClass = true)
+@EnableJpaRepositories("camt.se331.shoppingcart.repository")
+@PropertySources(value={@PropertySource("classpath:/hibernate.properties")})
 
 class PersistenceContext {
     private static final String[] ENTITY_PACKAGES = {
@@ -46,6 +50,75 @@ class PersistenceContext {
     private static final String PROPERTY_NAME_DB_PASSWORD = "db.password";
     private static final String PROPERTY_NAME_DB_URL = "db.url";
     private static final String PROPERTY_NAME_DB_USER = "db.username";
+
+    @Bean
+    public HibernateExceptionTranslator hibernateExceptionTranslator() {
+        return new HibernateExceptionTranslator();
+    }
+
+
+    @Autowired
+    private Environment env;
+
+    @Bean
+    public BoneCPDataSource boneCPDataSource(){
+        BoneCPDataSource boneCPDataSource = new BoneCPDataSource();
+        boneCPDataSource.setDriverClass(env.getRequiredProperty(PROPERTY_NAME_DB_DRIVER_CLASS));
+        boneCPDataSource.setJdbcUrl(env.getRequiredProperty(PROPERTY_NAME_DB_URL));
+        boneCPDataSource.setUsername(env.getRequiredProperty(PROPERTY_NAME_DB_USER));
+        boneCPDataSource.setPassword(env.getRequiredProperty(PROPERTY_NAME_DB_PASSWORD));
+        boneCPDataSource.setIdleConnectionTestPeriodInMinutes(60);
+        boneCPDataSource.setIdleMaxAgeInMinutes(420);
+        boneCPDataSource.setMaxConnectionsPerPartition(30);
+        boneCPDataSource.setMinConnectionsPerPartition(10);
+        boneCPDataSource.setPartitionCount(3);
+        boneCPDataSource.setAcquireIncrement(5);
+        boneCPDataSource.setStatementsCacheSize(100);
+
+
+        return boneCPDataSource;
+
+    }
+    @Bean
+    @Autowired
+    public EntityManagerFactory entityManagerFactory(DataSource dataSource) {
+        HibernateJpaVendorAdapter vendorAdapter = new HibernateJpaVendorAdapter();
+        vendorAdapter.setGenerateDdl(true);
+        vendorAdapter.setShowSql(false);
+
+        LocalContainerEntityManagerFactoryBean factory = new LocalContainerEntityManagerFactoryBean();
+        factory.setJpaVendorAdapter(vendorAdapter);
+        factory.setPackagesToScan(ENTITY_PACKAGES);
+        factory.setDataSource(dataSource);
+        Properties jpaProperties = new Properties();
+        jpaProperties.put(PROPERTY_NAME_HIBERNATE_DIALECT, env.getRequiredProperty(PROPERTY_NAME_HIBERNATE_DIALECT));
+
+        jpaProperties.put(PROPERTY_NAME_HIBERNATE_HBM2DDL_AUTO, env.getRequiredProperty(PROPERTY_NAME_HIBERNATE_HBM2DDL_AUTO));
+
+        //If the value of this property is true, Hibernate writes all SQL
+        //statements to the console.
+        jpaProperties.put(PROPERTY_NAME_HIBERNATE_SHOW_SQL, env.getRequiredProperty(PROPERTY_NAME_HIBERNATE_SHOW_SQL));
+
+        //If the value of this property is true, Hibernate will use prettyprint
+        //when it writes SQL to the console.
+        jpaProperties.put(PROPERTY_NAME_HIBERNATE_FORMAT_SQL, env.getRequiredProperty(PROPERTY_NAME_HIBERNATE_FORMAT_SQL));
+        factory.setJpaProperties(jpaProperties);
+
+        factory.afterPropertiesSet();;
+        return factory.getObject();
+    }
+
+
+    @Bean
+    @Autowired
+    public JpaTransactionManager transactionManager(EntityManagerFactory entityManagerFactory) {
+        JpaTransactionManager txManager = new JpaTransactionManager();
+        JpaDialect jpaDialect = new HibernateJpaDialect();
+        txManager.setEntityManagerFactory(entityManagerFactory);
+        txManager.setJpaDialect(jpaDialect);
+        return txManager;
+    }
+
 
 
 
